@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Profile {
+  id              String            @id
+  email           String
+  name            String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  memberships     WorkspaceMember[]
+  pagesAuthored   Page[]            @relation("PageAuthor")
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  invitesSent     Invite[]          @relation("InviteInviter")
+  pageShares      PageShare[]       @relation("PageShareUser")
+  pageInvitesSent PageInvite[]      @relation("PageInviteInviter")
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  ownerId   String
+  owner     Profile           @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  members   WorkspaceMember[]
+  pages     Page[]
+  invites   Invite[]
+}
+
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum PageRole {
+  EDITOR
+  VIEWER
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  userId      String
+  user        Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        Role
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, workspaceId])
+}
+
+model Page {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Page?     @relation("PageChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Page[]    @relation("PageChildren")
+  title       String
+  icon        String?
+  order       Float     @default(0)
+  authorId    String
+  author      Profile   @relation("PageAuthor", fields: [authorId], references: [id])
+  document    Document?
+  shares      PageShare[]
+  invites     PageInvite[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId, parentId])
+}
+
+enum DocFormat {
+  MARKDOWN
+  HTML
+}
+
+model Document {
+  id        String    @id @default(cuid())
+  pageId    String    @unique
+  page      Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  body      String    @default("")
+  format    DocFormat @default(MARKDOWN)
+  updatedAt DateTime  @updatedAt
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String
+  role        Role      @default(EDITOR)
+  token       String    @unique
+  inviterId   String
+  inviter     Profile   @relation("InviteInviter", fields: [inviterId], references: [id])
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model PageShare {
+  id        String   @id @default(cuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      Profile  @relation("PageShareUser", fields: [userId], references: [id], onDelete: Cascade)
+  role      PageRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pageId, userId])
+  @@index([userId])
+  @@index([pageId])
+}
+
+model PageInvite {
+  id         String    @id @default(cuid())
+  pageId     String
+  page       Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  email      String
+  role       PageRole  @default(VIEWER)
+  token      String    @unique
+  inviterId  String
+  inviter    Profile   @relation("PageInviteInviter", fields: [inviterId], references: [id])
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([pageId])
+  @@index([email])
+}

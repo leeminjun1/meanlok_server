@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment files (keep sample)
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+coverage/
+*.tsbuildinfo
+
+# Prisma generated files / local DB artifacts
+generated/prisma/
+prisma/*.db
+prisma/*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local tool/cache directories
+.omc/
+.cache/
+tmp/
+.tmp/
+
+# OS files
+.DS_Store

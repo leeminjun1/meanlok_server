@@ -1,0 +1,179 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, ExtractJwt } from 'passport-jwt';
+import { createPublicKey } from 'crypto';
+import { PrismaService } from '../../../prisma/prisma.service';
+
+type SupabaseJwtPayload = {
+  sub?: string;
+  email?: string;
+  user_metadata?: {
+    name?: string;
+  };
+};
+
+type JwtHeader = {
+  alg?: string;
+  kid?: string;
+};
+
+type SupabaseJwk = {
+  kid?: string;
+  [key: string]: unknown;
+};
+
+type SupabaseJwksResponse = {
+  keys: SupabaseJwk[];
+};
+
+type JwksCache = {
+  payload: SupabaseJwksResponse | null;
+  loadedAt: number;
+};
+
+const JWKS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function parseJwtHeader(rawJwtToken: string): JwtHeader {
+  const [headerSegment] = rawJwtToken.split('.');
+
+  if (!headerSegment) {
+    throw new UnauthorizedException('Invalid token format');
+  }
+
+  try {
+    const decodedHeader = Buffer.from(headerSegment, 'base64url').toString('utf8');
+    return JSON.parse(decodedHeader) as JwtHeader;
+  } catch {
+    throw new UnauthorizedException('Invalid token header');
+  }
+}
+
+async function fetchJwks(supabaseUrl: string, cache: JwksCache) {
+  if (
+    cache.payload &&
+    Date.now() - cache.loadedAt < JWKS_CACHE_TTL_MS
+  ) {
+    return cache.payload;
+  }
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  if (!response.ok) {
+    throw new UnauthorizedException('Failed to fetch Supabase JWKS');
+  }
+
+  const jwks = (await response.json()) as SupabaseJwksResponse;
+  if (!Array.isArray(jwks.keys) || jwks.keys.length === 0) {
+    throw new UnauthorizedException('Supabase JWKS is empty');
+  }
+
+  cache.payload = jwks;
+  cache.loadedAt = Date.now();
+  return jwks;
+}
+
+async function resolveSigningKey({
+  rawJwtToken,
+  sharedSecret,
+  supabaseUrl,
+  jwksCache,
+}: {
+  rawJwtToken: string;
+  sharedSecret?: string;
+  supabaseUrl: string;
+  jwksCache: JwksCache;
+}) {
+  const { alg, kid } = parseJwtHeader(rawJwtToken);
+
+  if (alg === 'HS256') {
+    if (!sharedSecret) {
+      throw new UnauthorizedException(
+        'SUPABASE_JWT_SECRET is required for HS256 tokens',
+      );
+    }
+
+    return sharedSecret;
+  }
+
+  if (alg !== 'ES256') {
+    throw new UnauthorizedException(
+      `Unsupported JWT algorithm: ${alg ?? 'unknown'}`,
+    );
+  }
+
+  if (!kid) {
+    throw new UnauthorizedException('JWT kid is missing');
+  }
+
+  const { keys } = await fetchJwks(supabaseUrl, jwksCache);
+  const jwk = keys.find((key) => key.kid === kid);
+  if (!jwk) {
+    throw new UnauthorizedException('No matching signing key in Supabase JWKS');
+  }
+
+  const publicKey = createPublicKey({
+    key: jwk as any,
+    format: 'jwk',
+  });
+
+  return publicKey.export({ type: 'spki', format: 'pem' }).toString();
+}
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
+    const supabaseUrl = configService
+      .get<string>('SUPABASE_URL')
+      ?.trim()
+      .replace(/\/$/, '');
+
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL is not configured');
+    }
+
+    const sharedSecret = configService.get<string>('SUPABASE_JWT_SECRET')?.trim();
+    const jwksCache: JwksCache = {
+      payload: null,
+      loadedAt: 0,
+    };
+
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      algorithms: ['ES256', 'HS256'],
+      secretOrKeyProvider: (_request, rawJwtToken, done) => {
+        resolveSigningKey({
+          rawJwtToken,
+          sharedSecret,
+          supabaseUrl,
+          jwksCache,
+        })
+          .then((signingKey) => done(null, signingKey))
+          .catch((error) => done(error as Error));
+      },
+    });
+  }
+
+  async validate(payload: SupabaseJwtPayload) {
+    const id = payload.sub;
+
+    if (!id) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    const email = payload.email ?? '';
+    const name =
+      payload.user_metadata?.name?.trim() || email.split('@')[0] || 'user';
+
+    const profile = await this.prisma.profile.upsert({
+      where: { id },
+      update: { email, name },
+      create: { id, email, name },
+    });
+
+    return profile;
+  }
+}
