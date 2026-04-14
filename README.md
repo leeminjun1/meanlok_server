@@ -1,98 +1,104 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Mean록 Server
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Mean록 백엔드 API 서버입니다.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- Framework: NestJS
+- ORM: Prisma
+- DB: Supabase Postgres
+- Auth: Supabase JWT 검증
 
-## Description
+## 주요 기능
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- 워크스페이스 생성/조회/수정/삭제
+- 멤버 관리/워크스페이스 초대
+- 페이지 트리 관리
+  - 생성/조회/수정/삭제
+  - 이동/복제
+- 문서 저장 (`MARKDOWN`/`HTML`/`MIXED`)
+- 페이지 단위 공유
+  - 직접 공유(`PageShare`)
+  - 페이지 초대(`PageInvite`)
+  - 링크 수락
+- 게스트 접근 제어
+  - 공유된 페이지 및 하위 페이지만 접근
+- AI 보조 API
 
-## Project setup
+## 권한 모델 요약
 
-```bash
-$ npm install
-```
+- Workspace Role: `OWNER` / `EDITOR` / `VIEWER`
+- Page Role: `EDITOR` / `VIEWER`
+- 실제 페이지 접근 권한은 Workspace 멤버 권한 + 페이지 공유 권한을 합산해 계산합니다.
 
-## Compile and run the project
+## 인증
 
-```bash
-# development
-$ npm run start
+프론트는 Supabase Auth로 토큰을 발급받고, API 호출 시 `Authorization: Bearer <token>`을 전달합니다.
 
-# watch mode
-$ npm run start:dev
+서버는 토큰 헤더를 보고 다음을 지원합니다.
 
-# production mode
-$ npm run start:prod
-```
+- `ES256` 토큰: Supabase JWKS로 검증
+- `HS256` 토큰: `SUPABASE_JWT_SECRET`으로 검증
 
-## Run tests
+## 사전 요구사항
 
-```bash
-# unit tests
-$ npm run test
+- Node.js 22+
+- npm 10+
+- Supabase 프로젝트
 
-# e2e tests
-$ npm run test:e2e
+## 환경 변수
 
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+`.env` 파일 생성:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cp .env.example .env
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+주요 값:
 
-## Resources
+- `DATABASE_URL`
+- `DIRECT_URL`
+- `PORT` (기본 `3001`)
+- `CORS_ORIGIN` (기본 `http://localhost:3000`)
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_JWT_SECRET`
+- `OPENAI_API_KEY` (AI 기능 사용 시)
 
-Check out a few resources that may come in handy when working with NestJS:
+## 로컬 실행
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npm install
+npm run prisma:migrate
+npm run start:dev
+```
 
-## Support
+- API Base URL: `http://localhost:3001/api`
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 빌드 / 테스트
 
-## Stay in touch
+```bash
+npm run build
+npm run test
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Prisma
 
-## License
+```bash
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:studio
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 주요 모듈
+
+- `src/modules/auth`
+- `src/modules/workspaces`
+- `src/modules/members`
+- `src/modules/invites`
+- `src/modules/pages`
+- `src/modules/documents`
+- `src/modules/page-shares`
+- `src/modules/ai`
+
+## 참고
+
+- 현재 페이지 초대는 실제 메일 발송 대신 링크 공유 방식으로 동작합니다.
