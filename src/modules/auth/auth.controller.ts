@@ -1,4 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Profile } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -6,12 +7,21 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@CurrentUser() user: Profile) {
-    return user;
+    const adminEmails = this.configService.get<string[]>('adminEmails') ?? [];
+    const requesterEmail = user.email?.trim().toLowerCase();
+
+    return {
+      profile: user,
+      isAdmin: Boolean(requesterEmail && adminEmails.includes(requesterEmail)),
+    };
   }
 
   @UseGuards(JwtAuthGuard)
